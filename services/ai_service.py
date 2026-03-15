@@ -129,38 +129,44 @@ def extract_and_fetch(messages: list) -> str:
 
     full_text = last_user_msg.strip()
 
-    # Step 1 — check if user typed a number id (1, 2, 3...)
-    id_match = re.search(r'\b(\d{1,3})\b', full_text)
-    if id_match:
-        result = find_project(id_match.group())
-        if result and result.get("data"):
-            project = result["data"]
-            summary = summarise_project(project)
-            return f"""
-Name       : {project.get('project_name')}
-Super      : {project.get('super_project_name')}
-ID         : {project.get('id')}
-Summary    : {summary}
-"""
-
-    # Step 2 — try whole message as project name
-    result = find_project(full_text)
-    if result and result.get("data"):
+    # ── helper to safely summarise ───────────────────────────
+    def safe_summary(result) -> str:
+        if not result or not result.get("data"):
+            return ""
         data = result["data"]
+
+        # If list returned — show names, don't summarise
         if isinstance(data, list):
             names = [p["project_name"] for p in data]
             return f"Multiple projects found: {', '.join(names)}. Please be more specific."
-        summary = summarise_project(data)
-        return f"""
-Name       : {data.get('project_name')}
-Super      : {data.get('super_project_name')}
-ID         : {data.get('id')}
-Summary    : {summary}
-"""
 
-    # Step 3 — try each word individually
+        # Single project dict — safe to summarise
+        summary = summarise_project(data)
+        return (
+            f"Name       : {data.get('project_name')}\n"
+            f"Super      : {data.get('super_project_name')}\n"
+            f"ID         : {data.get('id')}\n"
+            f"Summary    : {summary}"
+        )
+
+    # Step 1 — numeric id (1, 2, 3...)
+    id_match = re.search(r'\b(\d{1,3})\b', full_text)
+    if id_match:
+        result = find_project(id_match.group())
+        out = safe_summary(result)
+        if out:
+            return out
+
+    # Step 2 — whole message as search term
+    result = find_project(full_text)
+    out = safe_summary(result)
+    if out:
+        return out
+
+    # Step 3 — word by word search
     fillers = {'find','search','show','get','project','name','id','the','a','an',
-               'me','please','tell','about','check','what','is','for','i','want'}
+               'me','please','tell','about','check','what','is','for','i','want',
+               'update','with','to','by'}
 
     words = [w for w in re.split(r'\s+', full_text)
              if w.lower() not in fillers and len(w) > 2]
@@ -169,18 +175,9 @@ Summary    : {summary}
         clean = re.sub(r'[^a-zA-Z0-9\-]', '', word)
         if len(clean) > 3:
             result = find_project(clean)
-            if result and result.get("data"):
-                data = result["data"]
-                if isinstance(data, list):
-                    names = [p["project_name"] for p in data]
-                    return f"Multiple projects found: {', '.join(names)}. Be more specific."
-                summary = summarise_project(data)
-                return f"""
-Name       : {data.get('project_name')}
-Super      : {data.get('super_project_name')}
-ID         : {data.get('id')}
-Summary    : {summary}
-"""
+            out = safe_summary(result)
+            if out:
+                return out
 
     return ""
 

@@ -89,6 +89,7 @@ def update_project(super_project_name: str, project_name: str, new_details: str)
     container.upsert_item(item)
     return item
 
+
 # CREATE — add a new project
 def create_project(data: dict):
     container.upsert_item(data)
