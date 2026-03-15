@@ -2,7 +2,7 @@ import os
 import re
 from groq import Groq
 from dotenv import load_dotenv
-from services.cosmos_service import get_project, get_subprojects, update_project ,find_project
+from services.cosmos_service import get_project, get_subprojects, update_project_by_id ,find_project
 
 def extract_and_fetch(messages: list) -> str:
     last_user_msg = ""
