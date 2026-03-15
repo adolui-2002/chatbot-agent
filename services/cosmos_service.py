@@ -69,20 +69,23 @@ def find_project(search_term: str):
 
     return None
 # UPDATE — update project details
-def update_project(super_project_name: str, project_name: str, new_details: str):
-    # Find by project_name (works across all partitions)
-    query = "SELECT * FROM c WHERE c.project_name = @proj"
+def update_project_by_id(item_id: str, new_details: str):
+    # Step 1 — READ by id
+    query = "SELECT * FROM c WHERE c.id = @id"
     items = list(container.query_items(
         query=query,
-        parameters=[{"name": "@proj", "value": project_name}],
+        parameters=[{"name": "@id", "value": str(item_id)}],
         enable_cross_partition_query=True
     ))
 
     if not items:
         return None
 
+    # Step 2 — MODIFY
     item = items[0]
     item["project_details"] = new_details
+
+    # Step 3 — WRITE back (upsert = insert or update)
     container.upsert_item(item)
     return item
 #ATE — add a new project

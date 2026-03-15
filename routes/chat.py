@@ -1,15 +1,22 @@
 from fastapi import APIRouter
 from models.schemas import ChatRequest, ChatResponse
 from services.ai_service import run_agent
-from services.cosmos_service import find_project, update_project
+from services.cosmos_service import find_project, update_project_by_id
 import re
 
 router = APIRouter()
 
+
 def extract_update_intent(text: str):
-    """Extract project name and new details from update message."""
+    """
+    Detects patterns like:
+    update id 5 with new text here
+    update 5 with new text here
+    update id 23 to new text here
+    update project 5: new text here
+    """
     match = re.search(
-        r'update\s+(.+?)\s+(?:with|to|:)\s+(.+)',
+        r'update\s+(?:id\s+|project\s+)?(\d{1,3})\s+(?:with|to|:)\s+(.+)',
         text, re.IGNORECASE
     )
     if match:
@@ -22,84 +29,71 @@ def chat(request: ChatRequest):
     messages = [m.dict() for m in request.messages]
     last_msg = messages[-1]["content"].strip() if messages else ""
 
-    # ── User said yes — look back in history for update intent ──
+    # ── User confirmed with yes ──────────────────────────────
     if last_msg.lower() in ["yes", "yes.", "confirm", "ok", "sure", "yeah"]:
 
-        # Scan previous messages for last update request
+        # Scan history for the last update request
         for msg in reversed(messages[:-1]):
             if msg["role"] == "user":
-                project_hint, new_details = extract_update_intent(msg["content"])
-                if project_hint and new_details:
-                    # Found the update request — now write to DB
-                    result = find_project(project_hint)
+                item_id, new_details = extract_update_intent(msg["content"])
+                if item_id and new_details:
 
-                    if result and result.get("data"):
-                        data = result["data"]
+                    # Write to Cosmos DB using id
+                    updated = update_project_by_id(item_id, new_details)
 
-                        if isinstance(data, list):
-                            data = data[0]  # take first match
-
-                        updated = update_project(
-                            super_project_name=data["super_project_name"],
-                            project_name=data["project_name"],
-                            new_details=new_details
+                    if updated:
+                        return ChatResponse(
+                            reply=(
+                                f"✅ Successfully updated in Cosmos DB!\n\n"
+                                f"ID           : {updated.get('id')}\n"
+                                f"Project Name : {updated.get('project_name')}\n"
+                                f"Super Project: {updated.get('super_project_name')}\n"
+                                f"New Details  : {new_details}"
+                            )
                         )
-
-                        if updated:
-                            return ChatResponse(
-                                reply=(
-                                    f"✅ Successfully updated in Cosmos DB!\n\n"
-                                    f"Project Name  : {data['project_name']}\n"
-                                    f"Super Project : {data['super_project_name']}\n"
-                                    f"New Details   : {new_details}"
-                                )
-                            )
-                        else:
-                            return ChatResponse(
-                                reply="❌ Update failed — project not found in database."
-                            )
                     else:
                         return ChatResponse(
-                            reply=f"❌ Could not find project '{project_hint}' in the database."
+                            reply=f"❌ No project found with ID {item_id}."
                         )
 
-        # No update found in history
         return ChatResponse(
-            reply="I'm not sure what to confirm. Please type your update request again like:\nupdate <project name> with <new details>"
+            reply="I could not find a pending update. Please try again:\nupdate id 5 with your new details here"
         )
 
-    # ── User said no / cancel ────────────────────────────────
+    # ── User cancelled ───────────────────────────────────────
     if last_msg.lower() in ["no", "no.", "cancel", "stop"]:
         return ChatResponse(
-            reply="Okay, update cancelled. Let me know if you need anything else."
+            reply="Update cancelled. Let me know if you need anything else."
         )
 
-    # ── Detect update intent — ask for confirmation ──────────
-    project_hint, new_details = extract_update_intent(last_msg)
+    # ── Detect update intent ─────────────────────────────────
+    item_id, new_details = extract_update_intent(last_msg)
 
-    if project_hint and new_details:
-        result = find_project(project_hint)
+    if item_id and new_details:
+        # First check if the project exists
+        result = find_project(item_id)
 
         if result and result.get("data"):
             data = result["data"]
-
             if isinstance(data, list):
                 data = data[0]
 
+            # Ask for confirmation before writing
             return ChatResponse(
                 reply=(
                     f"Please confirm this update:\n\n"
-                    f"Project  : {data['project_name']}\n"
-                    f"Super    : {data['super_project_name']}\n"
-                    f"New text : {new_details}\n\n"
+                    f"ID           : {data.get('id')}\n"
+                    f"Project Name : {data.get('project_name')}\n"
+                    f"Super Project: {data.get('super_project_name')}\n"
+                    f"New Details  : {new_details}\n\n"
                     f"Type yes to confirm or no to cancel."
                 )
             )
         else:
             return ChatResponse(
-                reply=f"Could not find project '{project_hint}'. Please check the name and try again."
+                reply=f"❌ No project found with ID {item_id}. Please check the ID and try again."
             )
 
-    # ── Normal agent conversation ────────────────────────────
+    # ── Normal conversation ──────────────────────────────────
     reply = run_agent(messages)
     return ChatResponse(reply=reply)
