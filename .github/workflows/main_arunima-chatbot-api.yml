@@ -19,8 +19,8 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Zip artifact
-        run: zip release.zip ./* -r
+      - name: Zip artifact for deployment
+        run: zip -r release.zip . --exclude=".git/*" --exclude="myenv/*" --exclude="__pycache__/*"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -37,9 +37,13 @@ jobs:
         with:
           name: python-app
 
-      - name: Deploy to Azure
+      - name: Unzip artifact
+        run: unzip release.zip
+
+      - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'arunima-chatbot-api'
+          slot-name: 'Production'
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE }}
-          package: release.zip
+          package: .
