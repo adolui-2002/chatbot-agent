@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Project Agent</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0e0e11;
+    --surface: #17171c;
+    --surface2: #1f1f26;
+    --border: #2a2a35;
+    --accent: #7c6af7;
+    --accent2: #a78bfa;
+    --text: #f0eff8;
+    --muted: #7a7990;
+    --user-bubble: #7c6af7;
+    --bot-bubble: #1f1f26;
+    --success: #34d399;
+    --warn: #fbbf24;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 28px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-icon {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+
+  .logo-text {
+    font-family: 'Syne', sans-serif;
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+  }
+
+  .logo-sub {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 1px;
+  }
+
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    background: rgba(52,211,153,0.1);
+    border: 1px solid rgba(52,211,153,0.25);
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    color: var(--success);
+    font-weight: 500;
+  }
+
+  .status-dot {
+    width: 7px; height: 7px;
+    background: var(--success);
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%,100% { opacity:1; }
+    50% { opacity:0.4; }
+  }
+
+  /* ── Main layout ── */
+  .main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    width: 260px;
+    border-right: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+    padding: 20px 16px;
+    gap: 8px;
+    flex-shrink: 0;
+    overflow-y: auto;
+  }
+
+  .sidebar-label {
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 4px 8px;
+    margin-bottom: 4px;
+    font-family: 'Syne', sans-serif;
+  }
+
+  .quick-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.18s;
+    line-height: 1.4;
+  }
+
+  .quick-btn:hover {
+    background: rgba(124,106,247,0.12);
+    border-color: rgba(124,106,247,0.4);
+    color: var(--accent2);
+  }
+
+  .quick-btn .btn-icon {
+    font-size: 15px;
+    margin-right: 8px;
+  }
+
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 8px 0;
+  }
+
+  /* ── Chat area ── */
+  .chat-wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 28px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    scroll-behavior: smooth;
+  }
+
+  .messages::-webkit-scrollbar { width: 4px; }
+  .messages::-webkit-scrollbar-track { background: transparent; }
+  .messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  /* ── Message bubbles ── */
+  .msg {
+    display: flex;
+    gap: 12px;
+    max-width: 780px;
+    animation: fadeUp 0.3s ease;
+  }
+
+  @keyframes fadeUp {
+    from { opacity:0; transform: translateY(10px); }
+    to   { opacity:1; transform: translateY(0); }
+  }
+
+  .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+  .msg.bot  { align-self: flex-start; }
+
+  .avatar {
+    width: 34px; height: 34px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .msg.user .avatar {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+  }
+
+  .msg.bot .avatar {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+  }
+
+  .bubble {
+    padding: 13px 17px;
+    border-radius: 14px;
+    font-size: 14.5px;
+    line-height: 1.65;
+    max-width: 640px;
+  }
+
+  .msg.user .bubble {
+    background: var(--user-bubble);
+    color: #fff;
+    border-bottom-right-radius: 4px;
+  }
+
+  .msg.bot .bubble {
+    background: var(--bot-bubble);
+    border: 1px solid var(--border);
+    border-bottom-left-radius: 4px;
+    color: var(--text);
+  }
+
+  /* ── Summary card inside bubble ── */
+  .summary-card {
+    background: rgba(124,106,247,0.08);
+    border: 1px solid rgba(124,106,247,0.25);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-top: 10px;
+    font-size: 13.5px;
+  }
+
+  .summary-card .card-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent2);
+    letter-spacing: 0.5px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .summary-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 7px;
+    align-items: flex-start;
+  }
+
+  .summary-row .lbl {
+    color: var(--muted);
+    font-size: 12px;
+    min-width: 90px;
+    padding-top: 1px;
+  }
+
+  .summary-row .val {
+    color: var(--text);
+    font-size: 13px;
+    flex: 1;
+  }
+
+  .tag {
+    display: inline-block;
+    background: rgba(124,106,247,0.15);
+    color: var(--accent2);
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-size: 11.5px;
+    font-weight: 500;
+  }
+
+  /* ── Typing indicator ── */
+  .typing {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 13px 17px;
+    background: var(--bot-bubble);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    border-bottom-left-radius: 4px;
+    width: fit-content;
+  }
+
+  .typing span {
+    width: 7px; height: 7px;
+    background: var(--muted);
+    border-radius: 50%;
+    animation: bounce 1.2s infinite;
+  }
+  .typing span:nth-child(2) { animation-delay: 0.2s; }
+  .typing span:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes bounce {
+    0%,60%,100% { transform: translateY(0); }
+    30%          { transform: translateY(-6px); }
+  }
+
+  /* ── Welcome screen ── */
+  .welcome {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    text-align: center;
+    padding: 40px;
+  }
+
+  .welcome-icon {
+    width: 64px; height: 64px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 20px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 30px;
+    margin-bottom: 8px;
+  }
+
+  .welcome h2 {
+    font-family: 'Syne', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+  }
+
+  .welcome p {
+    color: var(--muted);
+    font-size: 14px;
+    max-width: 380px;
+    line-height: 1.6;
+  }
+
+  .welcome-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 8px;
+  }
+
+  .chip {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.18s;
+    color: var(--text);
+  }
+
+  .chip:hover {
+    background: rgba(124,106,247,0.15);
+    border-color: var(--accent);
+    color: var(--accent2);
+  }
+
+  /* ── Input bar ── */
+  .input-area {
+    padding: 16px 24px 20px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+
+  .input-box {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 10px 12px;
+    transition: border-color 0.2s;
+  }
+
+  .input-box:focus-within {
+    border-color: rgba(124,106,247,0.5);
+  }
+
+  textarea {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14.5px;
+    resize: none;
+    min-height: 24px;
+    max-height: 120px;
+    line-height: 1.5;
+    padding: 2px 0;
+  }
+
+  textarea::placeholder { color: var(--muted); }
+
+  .send-btn {
+    width: 38px; height: 38px;
+    background: var(--accent);
+    border: none;
+    border-radius: 10px;
+    color: #fff;
+    font-size: 17px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.18s;
+  }
+
+  .send-btn:hover { background: var(--accent2); transform: scale(1.05); }
+  .send-btn:disabled { background: var(--border); cursor: not-allowed; transform: none; }
+
+  .input-hint {
+    font-size: 11.5px;
+    color: var(--muted);
+    margin-top: 8px;
+    text-align: center;
+  }
+
+  /* ── Error toast ── */
+  .toast {
+    position: fixed;
+    top: 20px; right: 20px;
+    background: #3b1414;
+    border: 1px solid #7f2020;
+    color: #fca5a5;
+    padding: 12px 18px;
+    border-radius: 10px;
+    font-size: 13px;
+    z-index: 999;
+    animation: fadeUp 0.3s ease;
+    display: none;
+  }
+
+  /* responsive */
+  @media (max-width: 640px) {
+    .sidebar { display: none; }
+    .messages { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">🤖</div>
+    <div>
+      <div class="logo-text">Project Agent</div>
+      <div class="logo-sub">AI-powered project assistant</div>
+    </div>
+  </div>
+  <div class="status-pill">
+    <div class="status-dot"></div>
+    API Connected
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-label">Quick Actions</div>
+
+    <button class="quick-btn" onclick="sendQuick('Find project by ID')">
+      <span class="btn-icon">🔍</span> Search by Project ID
+    </button>
+    <button class="quick-btn" onclick="sendQuick('Find project by name')">
+      <span class="btn-icon">📋</span> Search by Name
+    </button>
+    <button class="quick-btn" onclick="sendQuick('Show all projects under Digital Transformation')">
+      <span class="btn-icon">🏢</span> Digital Transformation
+    </button>
+    <button class="quick-btn" onclick="sendQuick('Show all projects under Cloud Migration Program')">
+      <span class="btn-icon">☁️</span> Cloud Migration
+    </button>
+    <button class="quick-btn" onclick="sendQuick('Show all projects under Cybersecurity Overhaul')">
+      <span class="btn-icon">🔐</span> Cybersecurity
+    </button>
+
+    <div class="divider"></div>
+    <div class="sidebar-label">Operations</div>
+
+    <button class="quick-btn" onclick="sendQuick('I want to update a project')">
+      <span class="btn-icon">✏️</span> Update Project
+    </button>
+    <button class="quick-btn" onclick="sendQuick('Show me a summary of all super projects')">
+      <span class="btn-icon">📊</span> All Super Projects
+    </button>
+
+    <div class="divider"></div>
+
+    <button class="quick-btn" onclick="clearChat()" style="color:var(--muted)">
+      <span class="btn-icon">🗑️</span> Clear Chat
+    </button>
+  </aside>
+
+  <!-- Chat -->
+  <div class="chat-wrap">
+
+    <!-- Welcome screen -->
+    <div class="welcome" id="welcome">
+      <div class="welcome-icon">🗂️</div>
+      <h2>Hello! I'm your Project Agent</h2>
+      <p>Ask me about any project by its ID or name. I can fetch summaries, list subprojects, and update project details.</p>
+      <div class="welcome-chips">
+        <div class="chip" onclick="sendQuick('What can you do?')">What can you do?</div>
+        <div class="chip" onclick="sendQuick('Find project XAJI0Y6DPBH')">Search by ID</div>
+        <div class="chip" onclick="sendQuick('Tell me about Portal Redesign')">Search by name</div>
+        <div class="chip" onclick="sendQuick('List all Digital Transformation projects')">List projects</div>
+      </div>
+    </div>
+
+    <!-- Messages -->
+    <div class="messages" id="messages" style="display:none"></div>
+
+    <!-- Input -->
+    <div class="input-area">
+      <div class="input-box">
+        <textarea
+          id="input"
+          placeholder="Ask about a project, search by ID or name..."
+          rows="1"
+          onkeydown="handleKey(event)"
+          oninput="autoResize(this)"
+        ></textarea>
+        <button class="send-btn" id="sendBtn" onclick="sendMessage()">➤</button>
+      </div>
+      <div class="input-hint">Press Enter to send · Shift+Enter for new line</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── Config ──────────────────────────────────────────────
+const API_BASE = "https://arunima-chatbot-api-ayasepexf6dqc6az.southeastasia-01.azurewebsites.net";
+// If running locally change to:
+// const API_BASE = "http://localhost:8000";
+
+let history = [];
+let isLoading = false;
+
+// ── Auto resize textarea ─────────────────────────────────
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+// ── Handle Enter key ────────────────────────────────────
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+}
+
+// ── Quick action buttons ─────────────────────────────────
+function sendQuick(text) {
+  document.getElementById('input').value = text;
+  sendMessage();
+}
+
+// ── Clear chat ───────────────────────────────────────────
+function clearChat() {
+  history = [];
+  document.getElementById('messages').innerHTML = '';
+  document.getElementById('messages').style.display = 'none';
+  document.getElementById('welcome').style.display = 'flex';
+}
+
+// ── Show toast error ─────────────────────────────────────
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', 4000);
+}
+
+// ── Render a message bubble ──────────────────────────────
+function renderMessage(role, text) {
+  const container = document.getElementById('messages');
+
+  // Hide welcome, show messages
+  document.getElementById('welcome').style.display = 'none';
+  container.style.display = 'flex';
+
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+
+  const avatar = document.createElement('div');
+  avatar.className = 'avatar';
+  avatar.textContent = role === 'user' ? '👤' : '🤖';
+
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+
+  if (role === 'bot') {
+    bubble.innerHTML = formatBotMessage(text);
+  } else {
+    bubble.textContent = text;
+  }
+
+  div.appendChild(avatar);
+  div.appendChild(bubble);
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+// ── Format bot message — extract summary card if present ──
+function formatBotMessage(text) {
+  // Check if message contains a project summary (has Project Name / Super Project lines)
+  const hasCard = text.includes('Project Name') && text.includes('Super Project');
+
+  if (!hasCard) {
+    return `<p>${text.replace(/\n/g, '<br>')}</p>`;
+  }
+
+  // Parse the summary fields
+  const lines = text.split('\n');
+  let intro = '';
+  let name = '', superP = '', pid = '', details = '';
+  let inDetails = false;
+
+  lines.forEach(line => {
+    if (line.includes('Project Name') || line.includes('🔖')) {
+      name = line.split(':').slice(1).join(':').trim();
+    } else if (line.includes('Super Project') || line.includes('🏢')) {
+      superP = line.split(':').slice(1).join(':').trim();
+    } else if (line.includes('Project ID') || line.includes('🆔')) {
+      pid = line.split(':').slice(1).join(':').trim();
+    } else if (line.includes('Details') || line.includes('📝')) {
+      details = line.split(':').slice(1).join(':').trim();
+      inDetails = true;
+    } else if (inDetails && line.trim() && !line.includes('━')) {
+      details += ' ' + line.trim();
+    } else if (!name && !line.includes('━') && line.trim()) {
+      intro += line + ' ';
+    }
+  });
+
+  let html = '';
+  if (intro.trim()) {
+    html += `<p style="margin-bottom:10px">${intro.trim()}</p>`;
+  }
+
+  if (name || superP || pid || details) {
+    html += `
+      <div class="summary-card">
+        <div class="card-title">📋 Project Summary</div>
+        ${name    ? `<div class="summary-row"><span class="lbl">Project Name</span><span class="val"><strong>${name}</strong></span></div>` : ''}
+        ${superP  ? `<div class="summary-row"><span class="lbl">Super Project</span><span class="val"><span class="tag">${superP}</span></span></div>` : ''}
+        ${pid     ? `<div class="summary-row"><span class="lbl">Project ID</span><span class="val" style="font-family:monospace;font-size:12px;color:var(--muted)">${pid}</span></div>` : ''}
+        ${details ? `<div class="summary-row"><span class="lbl">Summary</span><span class="val">${details}</span></div>` : ''}
+      </div>`;
+  }
+
+  return html || `<p>${text.replace(/\n/g, '<br>')}</p>`;
+}
+
+// ── Show typing indicator ────────────────────────────────
+function showTyping() {
+  const container = document.getElementById('messages');
+  document.getElementById('welcome').style.display = 'none';
+  container.style.display = 'flex';
+
+  const div = document.createElement('div');
+  div.className = 'msg bot';
+  div.id = 'typing-msg';
+
+  const avatar = document.createElement('div');
+  avatar.className = 'avatar';
+  avatar.textContent = '🤖';
+
+  const typing = document.createElement('div');
+  typing.className = 'typing';
+  typing.innerHTML = '<span></span><span></span><span></span>';
+
+  div.appendChild(avatar);
+  div.appendChild(typing);
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function removeTyping() {
+  const el = document.getElementById('typing-msg');
+  if (el) el.remove();
+}
+
+// ── Main send function ───────────────────────────────────
+async function sendMessage() {
+  const input = document.getElementById('input');
+  const text = input.value.trim();
+  if (!text || isLoading) return;
+
+  // Clear input
+  input.value = '';
+  input.style.height = 'auto';
+  isLoading = true;
+  document.getElementById('sendBtn').disabled = true;
+
+  // Show user message
+  renderMessage('user', text);
+
+  // Add to history
+  history.push({ role: 'user', content: text });
+
+  // Show typing
+  showTyping();
+
+  try {
+    const response = await fetch(`${API_BASE}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: history })
+    });
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const reply = data.reply || 'Sorry, I could not get a response.';
+
+    removeTyping();
+    renderMessage('bot', reply);
+
+    // Add to history
+    history.push({ role: 'assistant', content: reply });
+
+    // Keep history to last 10 messages to avoid token overflow
+    if (history.length > 10) history = history.slice(-10);
+
+  } catch (err) {
+    removeTyping();
+    renderMessage('bot', '⚠️ Could not connect to the API. Make sure the server is running.');
+    showToast('Connection failed: ' + err.message);
+    history.pop(); // remove failed user message from history
+  }
+
+  isLoading = false;
+  document.getElementById('sendBtn').disabled = false;
+  input.focus();
+}
+</script>
+</body>
+</html>
