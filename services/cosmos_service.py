@@ -70,11 +70,8 @@ def find_project(search_term: str):
     return None
 # UPDATE — update project details
 def update_project(super_project_name: str, project_name: str, new_details: str):
-    # Find the item first
-    query = """
-        SELECT * FROM c
-        WHERE c.project_name = @proj
-    """
+    # Find by project_name (works across all partitions)
+    query = "SELECT * FROM c WHERE c.project_name = @proj"
     items = list(container.query_items(
         query=query,
         parameters=[{"name": "@proj", "value": project_name}],
@@ -88,9 +85,7 @@ def update_project(super_project_name: str, project_name: str, new_details: str)
     item["project_details"] = new_details
     container.upsert_item(item)
     return item
-
-
-# CREATE — add a new project
+#ATE — add a new project
 def create_project(data: dict):
     container.upsert_item(data)
     return data

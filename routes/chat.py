@@ -6,88 +6,100 @@ import re
 
 router = APIRouter()
 
-# In-memory store for pending updates
-# key = session (we use last user msg hash), value = {project, new_details}
-pending_updates = {}
+def extract_update_intent(text: str):
+    """Extract project name and new details from update message."""
+    match = re.search(
+        r'update\s+(.+?)\s+(?:with|to|:)\s+(.+)',
+        text, re.IGNORECASE
+    )
+    if match:
+        return match.group(1).strip(), match.group(2).strip()
+    return None, None
+
 
 @router.post("/chat", response_model=ChatResponse)
 def chat(request: ChatRequest):
     messages = [m.dict() for m in request.messages]
     last_msg = messages[-1]["content"].strip() if messages else ""
 
-    # ── Step 1: User confirms a pending update ───────────────
+    # ── User said yes — look back in history for update intent ──
     if last_msg.lower() in ["yes", "yes.", "confirm", "ok", "sure", "yeah"]:
-        if pending_updates:
-            # Get the most recent pending update
-            key = list(pending_updates.keys())[-1]
-            pending = pending_updates.pop(key)
 
-            updated = update_project(
-                super_project_name=pending["super_project_name"],
-                project_name=pending["project_name"],
-                new_details=pending["new_details"]
-            )
+        # Scan previous messages for last update request
+        for msg in reversed(messages[:-1]):
+            if msg["role"] == "user":
+                project_hint, new_details = extract_update_intent(msg["content"])
+                if project_hint and new_details:
+                    # Found the update request — now write to DB
+                    result = find_project(project_hint)
 
-            if updated:
-                return ChatResponse(
-                    reply=(
-                        f"✅ Done! Project updated successfully in the database.\n\n"
-                        f"Project Name  : {pending['project_name']}\n"
-                        f"Super Project : {pending['super_project_name']}\n"
-                        f"New Details   : {pending['new_details']}"
-                    )
-                )
-            else:
-                return ChatResponse(reply="❌ Update failed. Project not found in database.")
+                    if result and result.get("data"):
+                        data = result["data"]
 
-    # ── Step 2: User cancels ─────────────────────────────────
+                        if isinstance(data, list):
+                            data = data[0]  # take first match
+
+                        updated = update_project(
+                            super_project_name=data["super_project_name"],
+                            project_name=data["project_name"],
+                            new_details=new_details
+                        )
+
+                        if updated:
+                            return ChatResponse(
+                                reply=(
+                                    f"✅ Successfully updated in Cosmos DB!\n\n"
+                                    f"Project Name  : {data['project_name']}\n"
+                                    f"Super Project : {data['super_project_name']}\n"
+                                    f"New Details   : {new_details}"
+                                )
+                            )
+                        else:
+                            return ChatResponse(
+                                reply="❌ Update failed — project not found in database."
+                            )
+                    else:
+                        return ChatResponse(
+                            reply=f"❌ Could not find project '{project_hint}' in the database."
+                        )
+
+        # No update found in history
+        return ChatResponse(
+            reply="I'm not sure what to confirm. Please type your update request again like:\nupdate <project name> with <new details>"
+        )
+
+    # ── User said no / cancel ────────────────────────────────
     if last_msg.lower() in ["no", "no.", "cancel", "stop"]:
-        pending_updates.clear()
-        return ChatResponse(reply="Okay, update cancelled. Let me know if you need anything else.")
+        return ChatResponse(
+            reply="Okay, update cancelled. Let me know if you need anything else."
+        )
 
-    # ── Step 3: Detect update intent ────────────────────────
-    # Matches: "update DT-DevOps Pipeline with new text here"
-    update_match = re.search(
-        r'update\s+(.+?)\s+(?:with|to|:)\s+(.+)',
-        last_msg, re.IGNORECASE
-    )
+    # ── Detect update intent — ask for confirmation ──────────
+    project_hint, new_details = extract_update_intent(last_msg)
 
-    if update_match:
-        project_hint = update_match.group(1).strip()
-        new_details  = update_match.group(2).strip()
-
+    if project_hint and new_details:
         result = find_project(project_hint)
 
         if result and result.get("data"):
             data = result["data"]
 
             if isinstance(data, list):
-                names = [p["project_name"] for p in data]
-                return ChatResponse(
-                    reply=f"Multiple projects found: {', '.join(names)}.\nPlease be more specific about which one to update."
-                )
-
-            # Store pending update — wait for confirmation
-            pending_updates["latest"] = {
-                "project_name":      data["project_name"],
-                "super_project_name": data["super_project_name"],
-                "new_details":       new_details
-            }
+                data = data[0]
 
             return ChatResponse(
                 reply=(
-                    f"Please confirm — are you sure you want to update this project?\n\n"
+                    f"Please confirm this update:\n\n"
                     f"Project  : {data['project_name']}\n"
                     f"Super    : {data['super_project_name']}\n"
                     f"New text : {new_details}\n\n"
-                    f"Type **yes** to confirm or **no** to cancel."
+                    f"Type yes to confirm or no to cancel."
                 )
             )
         else:
             return ChatResponse(
-                reply=f"Could not find a project matching '{project_hint}'. Please check the name and try again."
+                reply=f"Could not find project '{project_hint}'. Please check the name and try again."
             )
 
-    # ── Step 4: Normal agent conversation ───────────────────
+    # ── Normal agent conversation ────────────────────────────
     reply = run_agent(messages)
     return ChatResponse(reply=reply)
