@@ -15,6 +15,7 @@ def extract_and_fetch(messages: list) -> str:
 
     full_text = last_user_msg.strip()
 
+
     # Step 1 — check if user typed a number (simple id like 1, 2, 3...)
     id_match = re.search(r'\b(\d{1,3})\b', full_text)
     if id_match:
