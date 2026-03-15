@@ -70,9 +70,21 @@ def find_project(search_term: str):
     return None
 # UPDATE — update project details
 def update_project(super_project_name: str, project_name: str, new_details: str):
-    item = get_project(super_project_name, project_name)
-    if not item:
+    # Find the item first
+    query = """
+        SELECT * FROM c
+        WHERE c.project_name = @proj
+    """
+    items = list(container.query_items(
+        query=query,
+        parameters=[{"name": "@proj", "value": project_name}],
+        enable_cross_partition_query=True
+    ))
+
+    if not items:
         return None
+
+    item = items[0]
     item["project_details"] = new_details
     container.upsert_item(item)
     return item
