@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from models.schemas import ProjectUpdate
 from services.cosmos_service import (
-    get_subprojects, get_project, update_project,
+    get_subprojects, get_project, update_project_by_id,
     create_project, delete_project, find_project
 )
 
@@ -39,9 +39,19 @@ def fetch_project(super_project_name: str, project_name: str):
 # PUT update a project
 @router.put("/projects/{super_project_name}/{project_name}")
 def update(super_project_name: str, project_name: str, body: ProjectUpdate):
-    updated = update_project(super_project_name, project_name, body.project_details)
-    if not updated:
+    # Find the project by name first to get its id
+    from services.cosmos_service import find_project
+    result = find_project(project_name)
+    if not result or not result.get("data"):
         raise HTTPException(status_code=404, detail="Project not found")
+
+    data = result["data"]
+    if isinstance(data, list):
+        data = data[0]
+
+    updated = update_project_by_id(data["id"], body.project_details)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Update failed")
     return updated
 
 # POST create new project
