@@ -4,24 +4,68 @@ from dotenv import load_dotenv
 from services.cosmos_service import get_project, get_subprojects, update_project ,find_project
 
 def extract_and_fetch(messages: list) -> str:
-    full_text = " ".join(m["content"] for m in messages)
+    last_user_msg = ""
+    for m in messages:
+        if m["role"] == "user":
+            last_user_msg = m["content"]
 
-    # Extract anything that looks like a project_id (11 char alnum)
-    import re
-    id_match = re.search(r'\b[A-Z0-9]{11}\b', full_text)
+    if not last_user_msg:
+        return ""
 
+    full_text = last_user_msg.strip()
+
+    # Step 1 — check if user typed a number (simple id like 1, 2, 3...)
+    id_match = re.search(r'\b(\d{1,3})\b', full_text)
     if id_match:
         result = find_project(id_match.group())
-        if result:
-            return f"Found by project_id:\n{result['data']}"
+        if result and result.get("data"):
+            project = result["data"]
+            summary = summarise_project(project)
+            return f"""
+Name       : {project.get('project_name')}
+Super      : {project.get('super_project_name')}
+ID         : {project.get('id')}
+Summary    : {summary}
+"""
 
-    # No ID found — try to match project name words
-    words = full_text.split()
+    # Step 2 — try whole message as project name
+    result = find_project(full_text)
+    if result and result.get("data"):
+        data = result["data"]
+        if isinstance(data, list):
+            names = [p["project_name"] for p in data]
+            return f"Multiple projects found: {', '.join(names)}. Please be more specific."
+        summary = summarise_project(data)
+        return f"""
+Name       : {data.get('project_name')}
+Super      : {data.get('super_project_name')}
+ID         : {data.get('id')}
+Summary    : {summary}
+"""
+
+    # Step 3 — try each word individually
+    fillers = {'find','search','show','get','project','name','id','the','a','an',
+               'me','please','tell','about','check','what','is','for','i','want'}
+
+    words = [w for w in re.split(r'\s+', full_text)
+             if w.lower() not in fillers and len(w) > 2]
+
     for word in words:
-        if len(word) > 4:   # skip short words like "the", "and"
-            result = find_project(word)
-            if result:
-                return f"Found by project_name:\n{result['data']}"
+        clean = re.sub(r'[^a-zA-Z0-9\-]', '', word)
+        if len(clean) > 3:
+            result = find_project(clean)
+            if result and result.get("data"):
+                data = result["data"]
+                if isinstance(data, list):
+                    names = [p["project_name"] for p in data]
+                    return f"Multiple projects found: {', '.join(names)}. Be more specific."
+                summary = summarise_project(data)
+                return f"""
+Name       : {data.get('project_name')}
+Super      : {data.get('super_project_name')}
+ID         : {data.get('id')}
+Summary    : {summary}
+"""
 
     return ""
 load_dotenv()

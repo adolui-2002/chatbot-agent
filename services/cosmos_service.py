@@ -25,41 +25,48 @@ def get_project(super_project_name: str, project_name: str):
 # ── FIND by project_id first, fallback to project_name ──────
 def find_project(search_term: str):
 
-    # Step 1 — Search by project_id (exact match)
-    query_by_id = """
-        SELECT * FROM c
-        WHERE c.id = @term
-    """
+    # Step 1 — search by simple id (1, 2, 3...)
+    query_by_id = "SELECT * FROM c WHERE c.id = @term"
     results = list(container.query_items(
         query=query_by_id,
-        parameters=[{"name": "@term", "value": search_term}],
+        parameters=[{"name": "@term", "value": str(search_term)}],
         enable_cross_partition_query=True
     ))
-
     if results:
-        return {
-            "found_by": "id",
-            "data": results[0]
-        }
+        return {"found_by": "id", "data": results[0]}
 
-    # Step 2 — project_id not found, try project_name (partial match)
+    # Step 2 — partial project_name match (case insensitive)
     query_by_name = """
         SELECT * FROM c
         WHERE CONTAINS(LOWER(c.project_name), LOWER(@term))
     """
     results = list(container.query_items(
         query=query_by_name,
-        parameters=[{"name": "@term", "value": search_term}],
+        parameters=[{"name": "@term", "value": search_term.lower()}],
         enable_cross_partition_query=True
     ))
-
     if results:
         return {
             "found_by": "project_name",
             "data": results[0] if len(results) == 1 else results
         }
 
-    # Step 3 — Nothing found
+    # Step 3 — search inside project_details text
+    query_by_details = """
+        SELECT * FROM c
+        WHERE CONTAINS(LOWER(c.project_details), LOWER(@term))
+    """
+    results = list(container.query_items(
+        query=query_by_details,
+        parameters=[{"name": "@term", "value": search_term.lower()}],
+        enable_cross_partition_query=True
+    ))
+    if results:
+        return {
+            "found_by": "project_details",
+            "data": results[0] if len(results) == 1 else results
+        }
+
     return None
 # UPDATE — update project details
 def update_project(super_project_name: str, project_name: str, new_details: str):
